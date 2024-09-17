@@ -1,4 +1,4 @@
-### BAAI/bge-reranker-v2-m3 reranking model
+# BAAI/bge-reranker-v2-m3 reranking model
 A custom docker image to deploy BAAI/bge-reranker-v2-m3 on MI210 GPU using Ray Serve
 
 
@@ -11,7 +11,7 @@ A custom docker image to deploy BAAI/bge-reranker-v2-m3 on MI210 GPU using Ray S
 }
 ```
 
-### image build
+## image build
 ```sh
 docker build -t bge-reranker-rocm .
 ```
