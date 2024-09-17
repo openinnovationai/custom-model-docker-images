@@ -1,0 +1,17 @@
+proxy_location: EveryNode
+
+http_options:
+  port: 8081
+
+logging_config:
+  encoding: JSON
+  log_level: INFO
+  logs_dir: null
+  enable_access_log: true
+
+applications:
+  - name: model
+    import_path: app:app 
+    runtime_env: {}
+    deployments:
+      - name: App
