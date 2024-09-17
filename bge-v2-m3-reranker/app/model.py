@@ -73,11 +73,3 @@ class App:
         logger.info("Health check on /models")
         await check_model_liveness()
         return {"model": MODELID}
-
-
-# Initialize and bind the app for Ray Serve
-def init_app() -> App:
-    return App.bind()
-
-
-app = init_app()
