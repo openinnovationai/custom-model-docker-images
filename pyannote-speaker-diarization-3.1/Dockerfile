@@ -1,11 +1,10 @@
-## syntax=docker/dockerfile:1.6
 # Select operator at build time: amd | nvidia | cpu
 ARG OPERATOR=cpu
 
 # Base stages for each operator
 FROM registry.gitlab.com/openinnovationai/platform/mlops/mlops-serving/rocm-6.1-pytorch-2.1.2-flash-attn AS base-amd
 FROM cupy/cupy:latest AS base-nvidia
-FROM python:3.11-slim AS base-cpu
+FROM python:3.11 AS base-cpu
 
 # Common runtime stage selected by OPERATOR
 FROM base-${OPERATOR} AS runtime
@@ -18,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-EXPOSE 8080
+EXPOSE 8080-9000
 
 WORKDIR /app
 
@@ -34,29 +33,30 @@ RUN apt-get update \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd --system --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
-    && mkdir -p /var/log/supervisor /app \
-    && chown -R appuser:appuser /app /var/log/supervisor
+# Ensure required directories exist
+RUN mkdir -p /var/log/supervisor /app
 
-# Python deps
-COPY requirements.txt /app/requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install --upgrade pip setuptools wheel \
-    && python3 -m pip install -r /app/requirements.txt
-
-# Install appropriate PyTorch per operator
+# Install appropriate PyTorch per operator first
 ARG OPERATOR
+RUN echo "Building with OPERATOR: ${OPERATOR}"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install --upgrade pip setuptools wheel
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     bash -lc 'set -euo pipefail; \
+    echo "Installing PyTorch for operator: ${OPERATOR}"; \
     if [ "${OPERATOR}" = "amd" ]; then \
-    python3 -m pip uninstall -y torch torchvision || true; \
-    python3 -m pip install --no-cache-dir --pre torch==2.5.0.dev20240726 torchvision==0.20.0.dev20240726 --index-url https://download.pytorch.org/whl/nightly/rocm6.1; \
+      python3 -m pip install --no-cache-dir --pre torch==2.5.0.dev20240726 torchvision==0.20.0.dev20240726 --index-url https://download.pytorch.org/whl/nightly/rocm6.1; \
     elif [ "${OPERATOR}" = "nvidia" ]; then \
-    python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121; \
+      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121; \
     else \
-    python3 -m pip install --no-cache-dir torch torchvision; \
+      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
     fi'
+
+# Python deps (install after PyTorch to avoid conflicts)
+COPY requirements.txt /app/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r /app/requirements.txt
 
 # Nginx and supervisor config
 COPY proxy.conf /etc/nginx/conf.d/proxy.conf
