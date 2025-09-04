@@ -3,3 +3,5 @@ pyannote.audio==3.3.2
 pydantic==2.11.7
 ray[serve]==2.49.1
 python-multipart==0.0.20
+httpx==0.28.1
+aiofiles==24.1.0

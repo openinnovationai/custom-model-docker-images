@@ -1,10 +1,12 @@
+import asyncio
 import logging
 import os
 import tempfile
 from typing import List, Optional
 from urllib.parse import urlparse
-from urllib.request import urlretrieve
 
+import aiofiles
+import httpx
 import pyannote.audio
 import torch
 from data import RTTMSegment, convert_annotation_to_segments
@@ -81,6 +83,33 @@ class App:
         self.model = Model()
         self.model.load_model()
 
+    async def _download_url_to_temp(self, url: str) -> str:
+        """Download a URL to a temporary file asynchronously and return the path.
+
+        Uses streaming to avoid large memory usage and preserves file suffix when possible.
+        """
+        suffix = os.path.splitext(urlparse(url).path)[1] or ".wav"
+        fd, temp_path = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
+        try:
+            async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
+                async with client.stream("GET", url) as resp:
+                    resp.raise_for_status()
+                    async with aiofiles.open(temp_path, "wb") as out_f:
+                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                            if chunk:
+                                await out_f.write(chunk)
+        except httpx.HTTPError as e:
+            # Cleanup partial file on failure
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=400, detail=f"Failed to download URL: {e}")
+        return temp_path
+
     @app.post("/diarize")
     async def diarize(self, request: Request):
         # Accept one of: JSON {"audio_path": "/path"}, multipart form (file field), or raw bytes
@@ -93,12 +122,7 @@ class App:
                 audio_path: Optional[str] = body.get("audio_path")
                 audio_url: Optional[str] = body.get("url")
                 if not audio_path and audio_url:
-                    # Download URL to a temporary file
-                    suffix = os.path.splitext(urlparse(audio_url).path)[
-                        1] or ".wav"
-                    fd, temp_path = tempfile.mkstemp(suffix=suffix)
-                    os.close(fd)
-                    urlretrieve(audio_url, temp_path)
+                    temp_path = await self._download_url_to_temp(audio_url)
                     audio_path = temp_path
                 if not audio_path:
                     raise HTTPException(
@@ -124,11 +148,13 @@ class App:
                     raise HTTPException(
                         status_code=400, detail="Empty request body.")
                 fd, temp_path = tempfile.mkstemp(suffix=".wav")
-                with os.fdopen(fd, "wb") as out:
-                    out.write(data)
+                os.close(fd)
+                async with aiofiles.open(temp_path, "wb") as out:
+                    await out.write(data)
                 audio_path = temp_path
 
-            output = self.model.diarize(audio_path=audio_path)
+            # Offload CPU-bound diarization to a worker thread to avoid blocking
+            output = await asyncio.to_thread(self.model.diarize, audio_path=audio_path)
             return output
         finally:
             if temp_path and os.path.exists(temp_path):
