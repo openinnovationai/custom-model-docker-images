@@ -1,3 +1,0 @@
-FlagEmbedding==1.2.11
-ray[serve]==2.31.0
-peft==0.12.0
