@@ -5,3 +5,4 @@ diffusers==0.35.1
 transformers==4.56.1
 accelerate==1.10.1
 bitsandbytes==0.47.0
+torchvision==0.23.0
