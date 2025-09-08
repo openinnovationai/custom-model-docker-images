@@ -69,7 +69,7 @@ class ModelService:
             with torch.inference_mode():
                 try:
                     self.__logger.info("Invoking image edit pipeline")
-                    output = await asyncio.to_thread(lambda: self.__model(image=input_image, generator=torch.manual_seed(0), **args))
+                    output = await asyncio.to_thread(lambda: self.__model(image=tmp_file_path, generator=torch.manual_seed(0), **args))
                     output_image = output.images[0]
                     buffer = BytesIO()
                     output_image.save(buffer, format="PNG")
