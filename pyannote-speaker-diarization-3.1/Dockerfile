@@ -70,7 +70,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     if [ "${OPERATOR}" = "amd" ]; then \
     python3 -m pip install --no-cache-dir --pre torch==2.5.0.dev20240726 torchvision==0.20.0.dev20240726 torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.1; \
     elif [ "${OPERATOR}" = "nvidia" ]; then \
-    python3 -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; \
+    python3 -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124; \
+    python3 -m pip install flash-attn==2.7.3 --no-build-isolation; \
     else \
     python3 -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
     fi'
