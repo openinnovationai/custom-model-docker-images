@@ -39,16 +39,14 @@ class ModelService:
         args = {
             "prompt": payload.prompt,
             "negative_prompt": payload.negative_prompt,
-            "true_config_scale": payload.true_config_scale,
             "num_inference_steps": payload.num_inference_steps,
         }
 
         start_time = time.perf_counter()
         self.__logger.info(
-            "Edit request: prompt=%r, negative_prompt=%s, true_config_scale=%.2f, num_inference_steps=%d, image_len=%d",
+            "Edit request: prompt=%r, negative_prompt=%s, num_inference_steps=%d, image_len=%d",
             payload.prompt[:80] if payload.prompt else "",
             "present" if payload.negative_prompt else "none",
-            payload.true_config_scale,
             payload.num_inference_steps,
             len(payload.image) if payload.image else 0,
         )
