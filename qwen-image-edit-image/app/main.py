@@ -36,7 +36,7 @@ async def health() -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
-@app.post("/v1/images/generations")
+@app.post("/v1/images/edits")
 async def edit_image(payload: EditRequestPayload) -> EditResponse:
     start_time = time.perf_counter()
     logger.info(
@@ -48,7 +48,7 @@ async def edit_image(payload: EditRequestPayload) -> EditResponse:
         len(payload.image) if payload.image else 0,
     )
     try:
-        response = model_controller.edit_image(payload)
+        response = await model_controller.edit_image(payload)
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Image edit completed in %.1f ms", duration_ms)
         return response
