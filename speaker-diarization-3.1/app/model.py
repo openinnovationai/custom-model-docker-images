@@ -26,7 +26,7 @@ class Model:
         logger.info("Model loaded")
         if torch.cuda.is_available():
             logger.info("Moving model to GPU")
-            self.pipeline.to("cuda")
+            self.pipeline.to(torch.device("cuda"))
             logger.info("Model moved to GPU")
         else:
             logger.info("CUDA is not available. Model will run on CPU.")
