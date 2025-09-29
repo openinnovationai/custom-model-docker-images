@@ -1,5 +1,9 @@
-# FROM cupy/cupy:v13.2.0 
-FROM python:3.10-slim
+ARG OPERATOR
+
+FROM cupy/cupy:v13.2.0 AS nvidia
+FROM python:3.10-slim AS cpu
+
+FROM ${OPERATOR}
 
 EXPOSE 8080
 
