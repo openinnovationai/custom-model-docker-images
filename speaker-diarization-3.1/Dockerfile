@@ -11,12 +11,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-ARG HF_TOKEN
-ENV HF_TOKEN=${HF_TOKEN} \
-    HF_HOME=/opt/huggingface \
-    TRANSFORMERS_CACHE=/opt/huggingface/transformers \
-    XDG_CACHE_HOME=/opt/.cache \
-    MPLCONFIGDIR=/opt/.cache/matplotlib
+ENV HF_HOME=/app
+ENV TORCH_HOME=/app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
@@ -29,18 +25,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x /app/model_cache.sh 
-
-# cache the model if you want to run it in airgapped environment
-RUN /app/model_cache.sh
-
 RUN useradd --uid 10000 runner
 
 RUN mkdir -p /home/runner /app \
-    && chown -R runner /home/runner /app /opt/huggingface /opt/.cache \
     && passwd -l root
 
 RUN chown -R runner:runner /app
+RUN chown -R runner:runner /home/runner
 
 USER runner:runner
 

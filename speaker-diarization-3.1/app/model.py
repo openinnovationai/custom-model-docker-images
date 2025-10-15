@@ -1,4 +1,3 @@
-from pyannote.audio import Pipeline
 import torch
 from .data import RTTMSegment, convert_annotation_to_segments
 import os
@@ -7,12 +6,28 @@ from urllib.parse import urlparse
 import tempfile
 import httpx
 import aiofiles
+import socket
+from pathlib import Path
 
 import logging
+
 
 logger = logging.getLogger("speaker_diarization.model")
 
 MODEL_ID = "pyannote/speaker-diarization-3.1"
+
+os.environ["HF_HUB_OFFLINE"] = "1"
+
+# Block network access
+def guard(*args, **kwargs):
+    raise Exception("Network access blocked!")
+
+# Block socket connections before importing
+socket.socket = guard
+
+from pyannote.audio import Pipeline
+
+CONFIG_PATH = "/app/model/pyannote_diarization_config.yaml"
 
 
 class Model:
@@ -20,8 +35,15 @@ class Model:
         self.pipeline = None
 
     def load_model(self):
-        logger.info("Loading model %s", MODEL_ID)
-        self.pipeline = Pipeline.from_pretrained(MODEL_ID)
+        logger.info("Loading model from local config at %s", CONFIG_PATH)
+        
+        # Store current working directory
+        original_cwd = Path.cwd()
+        
+        # Change to /app/model so the relative paths in config.yaml work
+        os.chdir('/app/model')
+
+        self.pipeline = Pipeline.from_pretrained(CONFIG_PATH)
 
         logger.info("Model loaded")
         if torch.cuda.is_available():

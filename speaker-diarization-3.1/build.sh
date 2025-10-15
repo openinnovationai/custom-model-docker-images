@@ -6,4 +6,4 @@ if [ -z "$OPERATOR" ]; then
     OPERATOR=cpu
 fi
 
-docker build -t pyannote-${OPERATOR} --build-arg HF_TOKEN=${HF_TOKEN} --build-arg OPERATOR=${OPERATOR} --platform linux/amd64 . 
+docker build -t pyannote-${OPERATOR} --build-arg OPERATOR=${OPERATOR} --platform linux/amd64 . 

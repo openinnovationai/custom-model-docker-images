@@ -26,7 +26,7 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Model is not loaded")
     return {"status": "ok"}
 
-@app.post("/diarize")
+@app.post("/v1/audio/diarization")
 async def diarize(request: Request):
     assert model.pipeline is not None, "Model is not loaded."
     # Accept one of: JSON {"url": "https://example.com/audio.wav"}, multipart form (file field), or raw bytes

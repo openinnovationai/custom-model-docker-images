@@ -13,6 +13,6 @@ import os
 from pyannote.audio import Pipeline
 model_id = os.environ.get('PYANNOTE_MODEL_ID', 'pyannote/speaker-diarization-3.1')
 token = os.environ.get('HF_TOKEN')
-Pipeline.from_pretrained(model_id, use_auth_token=token)
+Pipeline.from_pretrained(model_id, use_auth_token=token, cache_dir='/app/hub')
 print('Pre-downloaded', model_id)
 PY
