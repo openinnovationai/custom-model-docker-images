@@ -5,11 +5,17 @@ USER root
 RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --uid 10000 runner
-RUN mkdir /home/runner 
+RUN mkdir -p /home/runner 
 
 RUN cp /etc/nginx/mime.types /home/runner/mime.types
 
 RUN mkdir -p /home/runner/logs 
+
+RUN mkdir -p /home/runner/nginx_tmp/body \
+    && mkdir -p /home/runner/nginx_tmp/fastcgi \
+    && mkdir -p /home/runner/nginx_tmp/proxy \
+    && mkdir -p /home/runner/nginx_tmp/scgi \
+    && mkdir -p /home/runner/nginx_tmp/uwsgi
 
 RUN chown -R runner:runner /home/runner
 
