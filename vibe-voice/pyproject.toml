@@ -1,0 +1,21 @@
+[project]
+name = "docker-deployments"
+version = "0.1.0"
+requires-python = ">=3.12"
+# All dependencies ported from vibevoice repo
+dependencies = [
+    "absl-py>=2.3.1",
+    "accelerate==1.6.0",
+    "aiortc>=1.14.0",
+    "av>=16.0.1",
+    "diffusers>=0.35.2",
+    "gradio>=5.49.1",
+    "librosa>=0.11.0",
+    "litserve>=0.2.16",
+    "ml-collections>=1.1.0",
+    "numpy>=2.3.4",
+    "scipy>=1.16.2",
+    "torch>=2.9.0",
+    "tqdm>=4.67.1",
+    "transformers>=4.51.3",
+]
