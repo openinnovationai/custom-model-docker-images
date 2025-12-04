@@ -11,7 +11,7 @@
 
 - Download VibeVoice model to `models` directory
   ```sh
-  uvx hf download microsoft/VibeVoice-1.5B --local-dir ./models
+  uvx hf download microsoft/VibeVoice-1.5B --local-dir ./models/VibeVoice-1.5B
   ```
 - Build the image for CPU/Nvidia GPU: 
 
