@@ -13,6 +13,18 @@
   ```sh
   uvx hf download microsoft/VibeVoice-1.5B --local-dir ./models/VibeVoice-1.5B
   ```
+
+- Download `Qwen/Qwen2.5-1.5B` model to `models` directory 
+
+  ```sh 
+    uvx hf download Qwen/Qwen2.5-1.5B --local-dir ./models/Qwen2.5-1.5B
+  ```
+- Run the script to update `preprocessor_config.json` to set path to `Qwen/Qwen2.5-1.5B` model: 
+
+  ```sh
+  python3 scripts/run.py
+  ```
+
 - Build the image for CPU/Nvidia GPU: 
 
   ```sh 
