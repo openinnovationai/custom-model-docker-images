@@ -1,8 +1,8 @@
-import io, base64, torch
+import io, base64, torch, librosa
 import numpy as np
+import soundfile as sf
 import litserve as ls
 import logging
-from scipy.io import wavfile
 from vibevoice.processor.vibevoice_processor import VibeVoiceProcessor
 from vibevoice.modular.modeling_vibevoice_inference import (
     VibeVoiceForConditionalGenerationInference,
@@ -28,24 +28,43 @@ class VibeVoiceLitAPI(ls.LitAPI):
 
     def decode_request(self, request):
         logging.info(f"Received request: {request}")
-        # @NOTE: if new voices, add here.
-        return {
-            "text": request["text"],
-            "voice_samples": request.get(
-                "voice_samples",
-                [
-                    "./voices/en-Alice_woman_bgm.wav",
-                    "./voices/en-Alice_woman.wav",
-                    "./voices/en-Carter_man.wav",
-                    "./voices/en-Frank_man.wav",
-                    "./voices/en-Maya_woman.wav",
-                    "./voices/in-Samuel_man.wav",
-                    "./voices/zh-Anchen_man_bgm.wav",
-                    "./voices/zh-Bowen_man.wav",
-                    "./voices/zh-Xinran_woman.wav",
-                ],
-            ),
-        }
+        voice_samples = request.get("voice_samples")
+        TARGET_SR = 24000
+
+        if voice_samples is None:
+            voice_samples = [
+                "./voices/en-Alice_woman_bgm.wav",
+                "./voices/en-Alice_woman.wav",
+                "./voices/en-Carter_man.wav",
+                "./voices/en-Frank_man.wav",
+                "./voices/en-Maya_woman.wav",
+                "./voices/in-Samuel_man.wav",
+                "./voices/zh-Anchen_man_bgm.wav",
+                "./voices/zh-Bowen_man.wav",
+                "./voices/zh-Xinran_woman.wav",
+            ]
+        elif isinstance(voice_samples[0], (str, dict)) and not (
+            isinstance(voice_samples[0], str) and voice_samples[0].startswith("./")
+        ):
+            processed_samples = []
+            for sample in voice_samples:
+                if isinstance(sample, dict):
+                    audio_bytes = base64.b64decode(sample["audio_base64"])
+                else:
+                    audio_bytes = base64.b64decode(sample)
+
+                audio_data, sr = sf.read(io.BytesIO(audio_bytes))
+                if audio_data.ndim > 1:
+                    audio_data = librosa.to_mono(audio_data.T)
+                if sr != TARGET_SR:
+                    audio_data = librosa.resample(
+                        audio_data, orig_sr=sr, target_sr=TARGET_SR
+                    )
+
+                processed_samples.append(audio_data)
+            voice_samples = processed_samples
+
+        return {"text": request["text"], "voice_samples": voice_samples}
 
     def predict(self, inputs):
         processor_inputs = self.processor(
@@ -80,7 +99,7 @@ class VibeVoiceLitAPI(ls.LitAPI):
 
             # Write to in-memory buffer
             audio_buffer = io.BytesIO()
-            wavfile.write(audio_buffer, 24000, wav)
+            sf.write(audio_buffer, wav, 24000, format="WAV")
             audio_data = audio_buffer.getvalue()
             audio_buffer.close()
 
