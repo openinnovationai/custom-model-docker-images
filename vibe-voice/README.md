@@ -54,12 +54,57 @@
   docker push oicm-vibe-voice:nvidia
   ```
 
+## API Payload Format
+
+### Request
+
+**Endpoint:** `POST /tts`
+
+**Payload:**
+```json
+{
+  "text": "Speaker 1: this is a demo of vibevoice. Speaker 2: checking the demo of vibe voice",
+  "voice_samples": ["<base64-encoded-wav-1>", "<base64-encoded-wav-2>"]
+}
+```
+
+**Fields:**
+- `text` (required): Text to synthesize into speech
+- `voice_samples` (optional): Array of voice samples in one of these formats:
+  - Omit field to use default voices
+  - Array of base64-encoded WAV strings: `["base64string1", "base64string2"]`
+  - Array of objects with audio_base64 key: `[{"audio_base64": "base64string"}]`
+  - Each entry resonates to voice that will be cloned, and based on the index of the voice, use `Speaker <idx>` to use the voice.
+
+**Note:** Voice samples are automatically resampled to 24kHz and converted to mono if needed.
+
+### Response
+
+```json
+{
+  "audio_content": "<base64-encoded-wav>",
+  "content_type": "audio/wav"
+}
+```
+
 ## Testing
 
+**Using default voices:**
 ```sh
 curl -H "Content-Type: application/json" \
      -H "Authorization: Bearer <OICM-API-KEY>" \
      -d '{"text": "Speaker 1: this is a demo of vibevoice"}' \
+     https://<OICM-INFERENCE-PROXY-URL>/tts | \
+     jq -r '.audio_content' | \
+     base64 -d > output.wav
+```
+
+**Using custom voice sample:**
+```sh
+VOICE_BASE64=$(base64 -i voice.wav)
+curl -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <OICM-API-KEY>" \
+     -d '{"text": "Hello world", "voice_samples": ["'$VOICE_BASE64'"]}' \
      https://<OICM-INFERENCE-PROXY-URL>/tts | \
      jq -r '.audio_content' | \
      base64 -d > output.wav
