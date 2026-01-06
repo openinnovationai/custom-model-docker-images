@@ -1,0 +1,60 @@
+[project]
+name = "omniasr-server"
+version = "0.1.0"
+description = "High-performance Omnilingual-ASR model server with OpenAI Whisper-compatible API"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "omnilingual-asr>=0.2.0",
+    "soundfile>=0.13.1",
+    "fastapi>=0.127.0",
+    "pydantic>=2.12.5",
+    "python-multipart>=0.0.21",
+    "uvicorn>=0.34.0",
+
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
+    "fairseq2>=0.2.0",
+    "fairseq2n>=0.2.0",
+]
+
+[dependency-groups]
+dev = ["debugpy>=1.8.19", "httpx>=0.28.0", "pytest>=9.0.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "pytorch-cu126", marker = "sys_platform != 'darwin'" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "pytorch-cu126", marker = "sys_platform != 'darwin'" },
+]
+fairseq2 = [
+    { index = "fairseq2-cpu", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "fairseq2-cu126", marker = "sys_platform != 'darwin'" },
+]
+fairseq2n = [
+    { index = "fairseq2-cpu", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "fairseq2-cu126", marker = "sys_platform != 'darwin'" },
+]
+
+
+[[tool.uv.index]]
+name = "fairseq2-cu126"
+url = "https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cu126"
+
+[[tool.uv.index]]
+name = "fairseq2-cpu"
+url = "https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu"
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
