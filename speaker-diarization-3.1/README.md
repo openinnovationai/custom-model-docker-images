@@ -22,7 +22,7 @@ Base URL: `http://localhost:8080`
 - `GET /health-check`
   - Returns `200 {"status":"ok"}` when the model is loaded. Returns `503` if the model is not loaded.
 
-- `POST /diarize`
+- `POST /v1/audio/diarization`
   - Accepts one of the following input modes:
     1) JSON: `{ "url": "https://example.com/audio.wav" }`
     2) Multipart form: field name `file` (e.g. upload `file=@audio.wav`)
@@ -148,20 +148,20 @@ curl -s http://localhost:8080/health-check
 
 Diarize via JSON URL:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://your-bucket/audio.wav"}' | jq .
 ```
 
 Diarize via multipart file upload:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -F file=@/path/to/audio.wav | jq .
 ```
 
 Diarize via raw bytes:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -H 'Content-Type: application/octet-stream' \
   --data-binary @/path/to/audio.wav | jq .
 ```
