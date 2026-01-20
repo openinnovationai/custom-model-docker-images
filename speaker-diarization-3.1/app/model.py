@@ -19,7 +19,11 @@ MODEL_ID = "pyannote/speaker-diarization-3.1"
 os.environ["HF_HUB_OFFLINE"] = "1"
 
 # Block network access
-def guard(*args, **kwargs):
+_original_socket = socket.socket
+def guard(family=-1, type=-1, proto=-1, fileno=None):
+    # Allow AF_UNIX sockets for local IPC
+    if family == socket.AF_UNIX:
+        return _original_socket(family, type, proto, fileno)
     raise Exception("Network access blocked!")
 
 # Block socket connections before importing
