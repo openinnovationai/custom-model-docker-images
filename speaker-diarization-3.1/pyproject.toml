@@ -5,7 +5,7 @@ description = "Speaker Diarization 3.1 Service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pyannote.audio>=4.0.0",
+    "pyannote.audio==3.3.2",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.35.0",
     "pydantic==2.11.7",
