@@ -1,0 +1,44 @@
+FROM python:3.10-slim-bookworm
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Environment variables
+# Environment variables
+ENV HOME=/home/runner \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:/home/runner/.local/bin:$PATH" \
+    HF_HOME=/app \
+    TORCH_HOME=/app
+
+EXPOSE 8080
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Setup user first
+RUN useradd --uid 10000 runner \
+    && mkdir -p /home/runner /app \
+    && chown -R runner:runner /app /home/runner
+
+WORKDIR /app
+USER runner
+
+# Install dependencies as runner
+# Install dependencies as runner
+COPY --chown=runner:runner pyproject.toml uv.lock* ./
+RUN uv venv ${VIRTUAL_ENV}
+RUN uv sync --frozen --no-install-project --no-dev --active
+
+# Copy application code as runner
+COPY --chown=runner:runner . .
+
+# Run application
+# We use `uv run` to ensure we use the virtual environment
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

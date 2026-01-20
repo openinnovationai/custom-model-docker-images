@@ -25,9 +25,11 @@ def guard(*args, **kwargs):
 # Block socket connections before importing
 socket.socket = guard
 
-from pyannote.audio import Pipeline
+from pyannote.audio.pipelines import SpeakerDiarization
 
-CONFIG_PATH = "/app/model/pyannote_diarization_config.yaml"
+# Local model paths
+SEGMENTATION_MODEL_PATH = "/app/model/pyannote_model_segmentation-3.0.bin"
+EMBEDDING_MODEL_PATH = "/app/model/pyannote_model_wespeaker-voxceleb-resnet34-LM.bin"
 
 
 class Model:
@@ -35,15 +37,30 @@ class Model:
         self.pipeline = None
 
     def load_model(self):
-        logger.info("Loading model from local config at %s", CONFIG_PATH)
+        logger.info("Loading model from local files")
         
-        # Store current working directory
-        original_cwd = Path.cwd()
+        # Directly instantiate the SpeakerDiarization pipeline
+        # This bypasses from_pretrained() which tries to fetch PLDA from HuggingFace
+        self.pipeline = SpeakerDiarization(
+            segmentation=SEGMENTATION_MODEL_PATH,
+            embedding=EMBEDDING_MODEL_PATH,
+            clustering="AgglomerativeClustering",
+            segmentation_batch_size=32,
+            embedding_batch_size=32,
+            embedding_exclude_overlap=True,
+        )
         
-        # Change to /app/model so the relative paths in config.yaml work
-        os.chdir('/app/model')
-
-        self.pipeline = Pipeline.from_pretrained(CONFIG_PATH)
+        # Set hyperparameters
+        self.pipeline.instantiate({
+            "clustering": {
+                "method": "centroid",
+                "min_cluster_size": 12,
+                "threshold": 0.7045654963945799,
+            },
+            "segmentation": {
+                "min_duration_off": 0.0,
+            },
+        })
 
         logger.info("Model loaded")
         if torch.cuda.is_available():

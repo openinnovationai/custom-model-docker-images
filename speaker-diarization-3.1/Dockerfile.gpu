@@ -1,0 +1,48 @@
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+# Install python, uv, and ffmpeg (required by torchcodec for audio decoding)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    libgomp1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Environment variables
+# Environment variables
+ENV HOME=/home/runner \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:/home/runner/.local/bin:$PATH" \
+    HF_HOME=/app \
+    TORCH_HOME=/app
+
+EXPOSE 8080
+
+# Setup user first
+RUN useradd --uid 10000 runner \
+    && mkdir -p /home/runner /app \
+    && chown -R runner:runner /app /home/runner
+
+WORKDIR /app
+USER runner
+
+# Install dependencies as runner
+# Install dependencies as runner
+COPY --chown=runner:runner pyproject.toml uv.lock* ./
+RUN uv venv ${VIRTUAL_ENV}
+# We rely on uv to respect the index priority in pyproject.toml for cuda 129
+RUN uv sync --frozen --no-install-project --no-dev --active
+
+# Copy application code as runner
+COPY --chown=runner:runner . .
+
+# Run application
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
