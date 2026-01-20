@@ -5,8 +5,8 @@ description = "Speaker Diarization 3.1 Service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "torch==2.6.0+cu129",
-    "torchaudio==2.6.0+cu129",
+    "torch>=2.1,<2.6",
+    "torchaudio>=2.1,<2.5",
     "pyannote.audio==3.3.2",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.35.0",
@@ -21,5 +21,9 @@ index-url = "https://pypi.org/simple"
 
 [[tool.uv.index]]
 name = "pytorch"
-url = "https://download.pytorch.org/whl/cu129"
-priority = "supplemental"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchaudio = { index = "pytorch" }
