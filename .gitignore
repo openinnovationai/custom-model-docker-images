@@ -1,1 +1,6 @@
 models/
+.venv
+*.mp3
+*.pt
+*.safetensors
+*.gguf
