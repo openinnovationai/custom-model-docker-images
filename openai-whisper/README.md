@@ -51,6 +51,19 @@ curl -X POST http://localhost:8080/asr \
   -F "language=en"
 ```
 
+## Local Development 
+
+```sh 
+# Requires python3.10
+uv venv --python 3.10
+
+source .venv/bin/activate
+
+uv sync --no-install-project --frozen
+
+uv run app.py
+```
+
 ## Getting help
 
 ```sh
