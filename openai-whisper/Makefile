@@ -14,6 +14,10 @@ run-nvidia: # Run nvidia image
 run-cpu: # Run cpu image
 	docker run -p 8080:8080 whisper-runner:cpu
 
+clean: # Clean temporary files
+	@rm -rf $(TMP_PATH) __pycache__ .pytest_cache
+	@find . -name '*.pyc' -delete
+	@find . -name '__pycache__' -delete
 
 help: # Show this help
 	@egrep -h '\s#\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?# "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

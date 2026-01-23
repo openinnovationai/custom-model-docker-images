@@ -41,8 +41,8 @@ RUN --mount=type=bind,source=uv.lock,target=uv.lock \
 
 RUN mkdir -p /home/runner/.cache/whisper
 COPY --chown=runner:runner ./large-v3-turbo.pt /home/runner/.cache/whisper/large-v3-turbo.pt
-COPY --chown=runner:runner server.py /app/
+COPY --chown=runner:runner app.py /app/
 
 EXPOSE 8080
 
-CMD [ "uv", "run", "python", "server.py" ]
+CMD ["python", "app.py"]
