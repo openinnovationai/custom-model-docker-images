@@ -36,7 +36,7 @@ app = FastAPI(lifespan=lifespan)
 async def health_check():
     return {"status": "ok"}
 
-@app.post("/asr")
+@app.post("/v1/audio/transcriptions")
 async def asr(audio: UploadFile = File(...), language: str | None = Form(None)):
     logger.info(f"Received request - language: {language}")
     
