@@ -1,7 +1,0 @@
-pyannote.audio==3.4.0
-fastapi>=0.116.1
-uvicorn[standard]>=0.35.0
-pydantic==2.11.7
-httpx==0.28.1
-python-multipart==0.0.20
-aiofiles==24.1.0

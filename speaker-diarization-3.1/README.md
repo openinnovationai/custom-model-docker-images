@@ -1,6 +1,7 @@
 ## Speaker Diarization 3.1 (FastAPI + pyannote)
 
 Production-ready HTTP service that performs speaker diarization using `pyannote/speaker-diarization-3.1`.
+Now managing dependencies with `uv` and supporting split CPU/GPU builds for better optimization.
 
 The service exposes a simple REST API and can be built for CPU-only or NVIDIA GPUs. The container pre-downloads the Hugging Face model at build time to enable stable, offline-friendly deployments.
 
@@ -21,7 +22,7 @@ Base URL: `http://localhost:8080`
 - `GET /health-check`
   - Returns `200 {"status":"ok"}` when the model is loaded. Returns `503` if the model is not loaded.
 
-- `POST /diarize`
+- `POST /v1/audio/diarization`
   - Accepts one of the following input modes:
     1) JSON: `{ "url": "https://example.com/audio.wav" }`
     2) Multipart form: field name `file` (e.g. upload `file=@audio.wav`)
@@ -59,9 +60,8 @@ Example minimal response item:
 ## Requirements
 
 - Docker
+- Docker
 - For GPU builds/runs: NVIDIA GPU + recent NVIDIA driver + `nvidia-container-toolkit`
-- A Hugging Face access token with permission to download `pyannote/speaker-diarization-3.1` (required at build time to pre-download the model)
-  - Export as env var: `export HF_TOKEN=hf_xxx`
 
 The image exposes port `8080`.
 
@@ -72,16 +72,12 @@ The image exposes port `8080`.
 ### CPU build and run
 ```bash
 cd speaker-diarization-3.1
-export HF_TOKEN=hf_your_token
-./build.sh  # defaults to OPERATOR=cpu; builds image tag: pyannote-cpu
-
 docker run --rm -p 8080:8080 pyannote-cpu
 ```
 
 ### NVIDIA GPU build and run
 ```bash
 cd speaker-diarization-3.1
-export HF_TOKEN=hf_your_token
 OPERATOR=nvidia ./build.sh  # builds image tag: pyannote-nvidia
 
 docker run --rm --gpus all -p 8080:8080 pyannote-nvidia
@@ -105,21 +101,18 @@ docker build \
   --platform linux/amd64 .
 ```
 
-- **`OPERATOR`** selects the base stage in the `Dockerfile`:
-  - `cpu` -> `FROM python:3.10-slim`
-  - `nvidia` -> `FROM cupy/cupy:v13.2.0`
-- **`HF_TOKEN`** is forwarded into the build to pre-download the model via `model_cache.sh`.
+- **`OPERATOR`** selects the target Dockerfile:
+  - `cpu` -> `Dockerfile.cpu`
+  - `nvidia` -> `Dockerfile.gpu`
 - `--platform linux/amd64` ensures compatibility when building from Apple Silicon.
 
 You can either call `./build.sh` (CPU default) or override `OPERATOR`:
 
 ```bash
 # CPU
-export HF_TOKEN=hf_your_token
 ./build.sh
 
 # NVIDIA
-export HF_TOKEN=hf_your_token
 OPERATOR=nvidia ./build.sh
 ```
 
@@ -130,14 +123,12 @@ OPERATOR=nvidia ./build.sh
 ```bash
 # CPU image
 docker build -t pyannote-cpu \
-  --build-arg HF_TOKEN=${HF_TOKEN} \
-  --build-arg OPERATOR=cpu \
+  -f Dockerfile.cpu \
   --platform linux/amd64 .
 
 # NVIDIA image
-docker build -t pyannote-nvidia \
-  --build-arg HF_TOKEN=${HF_TOKEN} \
-  --build-arg OPERATOR=nvidia \
+docker build -t pyannote-gpu \
+  -f Dockerfile.gpu \
   --platform linux/amd64 .
 ```
 
@@ -157,20 +148,20 @@ curl -s http://localhost:8080/health-check
 
 Diarize via JSON URL:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://your-bucket/audio.wav"}' | jq .
 ```
 
 Diarize via multipart file upload:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -F file=@/path/to/audio.wav | jq .
 ```
 
 Diarize via raw bytes:
 ```bash
-curl -s -X POST http://localhost:8080/diarize \
+curl -s -X POST http://localhost:8080/v1/audio/diarization \
   -H 'Content-Type: application/octet-stream' \
   --data-binary @/path/to/audio.wav | jq .
 ```
@@ -181,14 +172,14 @@ curl -s -X POST http://localhost:8080/diarize \
 
 - The service is implemented with FastAPI (`uvicorn` entrypoint) in `app/main.py`.
 - The model pipeline is created in `app/model.py` and moved to GPU automatically if available.
-- `model_cache.sh` uses `HF_TOKEN` at build time to pre-download the `pyannote/speaker-diarization-3.1` pipeline to the container cache.
 - Supported audio types are those readable by pyannote/torchaudio/ffmpeg via the pipeline; common formats like WAV typically work best.
 
 ---
 
 ## Troubleshooting
 
-- If build fails with missing token, ensure `HF_TOKEN` is exported in your shell.
+## Troubleshooting
+
 - If running on GPU, ensure `docker run --gpus all` and the NVIDIA toolkit are installed.
 - If you build on Apple Silicon for a Linux deployment, keep `--platform linux/amd64` in the build.
 
