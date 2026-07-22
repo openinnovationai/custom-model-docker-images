@@ -2,12 +2,16 @@
 
 This repo contains examples for the custom docker images deployment.
 
+These images work with OICM 1.15.0 or lower. To use these images in OICM 1.16.0 and later, update the health check endpoint from `/health-check` to `/health`.
+
 ### Available Services
 
 #### Speaker Diarization 3.1
+
 Location: `speaker-diarization-3.1/`
 
 Endpoints:
+
 - `GET /health-check` - Health check endpoint
 - `POST /v1/audio/diarization` - Speaker diarization endpoint (supports JSON URL, multipart file upload, or raw bytes)
 
