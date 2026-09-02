@@ -168,6 +168,9 @@ The image is **amd64 only**, listens on **port 8080**, and runs as **USER 10000*
 It includes the `urchade/gliner_small-v2.1` weights, tokenizer, and backbone
 configuration, with offline model loading enabled. To embed a different model,
 pass `--build-arg GLINER_MODEL=<model-id>` when building.
+Compilation is disabled by default (`GLINER_DISABLE_COMPILE=true`) for
+compatibility with the image's PyTorch 2.2 runtime. GPU inference uses eager mode
+and float32 because this runtime's packed LSTM CUDA path does not support BFloat16.
 Health endpoints are `GET /health` and `GET /health-check`; predictions use
 `POST /gliner`. See [Docker serving instructions](docs/serving.md#docker) for
 configuration and Compose usage.

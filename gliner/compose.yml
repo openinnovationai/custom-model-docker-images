@@ -13,7 +13,7 @@ services:
             - "8080:8080"
         environment:
             - GLINER_DEVICE=cuda
-            - GLINER_DTYPE=bfloat16
+            - GLINER_DTYPE=float32
             - GLINER_MAX_BATCH_SIZE=32
         deploy:
             resources:

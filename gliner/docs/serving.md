@@ -431,6 +431,15 @@ the build as UID 10000, and a build step verifies model loading with networking
 disabled. Runtime model loading uses offline mode, so startup needs no model
 downloads. The default configuration requires an NVIDIA GPU.
 
+This image disables `torch.compile` by default and runs inference in eager mode.
+Its PyTorch 2.2 runtime does not provide `torch.compiler.is_compiling`, which
+Transformers calls during compilation. Enabling compilation with this runtime
+can fail during startup with `InternalTorchDynamoError: is_compiling`.
+The default dtype is `float32`: the model's packed LSTM CUDA path in this runtime
+does not support BFloat16, which otherwise fails with
+`"_thnn_fused_lstm_cell_cuda" not implemented for 'BFloat16'` during memory
+calibration or inference.
+
 **Build** from the GLiNER directory (`cd gliner` from the repository root):
 ```bash
 docker build --platform linux/amd64 -t gliner-serve:amd64 -f gliner/serve/Containerfile .
@@ -480,15 +489,22 @@ For a custom model, use
 | `HF_HUB_OFFLINE` | `1` | Use embedded Hugging Face cache without network requests |
 | `TRANSFORMERS_OFFLINE` | `1` | Load Transformers assets locally |
 | `GLINER_DEVICE` | `cuda` | Device (cuda/cpu) |
-| `GLINER_DTYPE` | `bfloat16` | Data type |
+| `GLINER_DTYPE` | `float32` | Data type; use float32 for this image's packed LSTM CUDA path |
 | `GLINER_MAX_BATCH_SIZE` | `32` | Max batch size |
 | `GLINER_NUM_REPLICAS` | `1` | Number of replicas |
 | `GLINER_MEMORY_FRACTION` | `0.8` | GPU memory fraction |
 | `GLINER_QUANTIZATION` | - | Quantization (`int8` only; use `GLINER_DTYPE` for precision) |
 | `GLINER_ENABLE_FLASHDEBERTA` | `false` | Enable FlashDeBERTa |
 | `GLINER_ENABLE_PACKING` | `false` | Enable sequence packing |
-| `GLINER_DISABLE_COMPILE` | `false` | Disable torch.compile |
+| `GLINER_DISABLE_COMPILE` | `true` | Keep compilation disabled for this PyTorch 2.2 image |
 | `GLINER_ROUTE_PREFIX` | `/` | HTTP route prefix; keep `/` for root health endpoints |
+
+**Recover an older image that fails during compilation or BFloat16 inference:**
+
+Recreate the container with `-e GLINER_DISABLE_COMPILE=true -e GLINER_DTYPE=float32`
+added to its `docker run` command. This uses the existing embedded model weights and does
+not require rebuilding or downloading the model again. Restarting the old
+container alone does not change its environment.
 
 ## Shutdown
 

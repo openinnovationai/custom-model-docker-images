@@ -35,9 +35,13 @@ ARG GLINER_MODEL="urchade/gliner_small-v2.1"
 ENV GLINER_MODEL=${GLINER_MODEL}
 # Default serving configuration (override with -e)
 ENV GLINER_DEVICE="cuda"
-ENV GLINER_DTYPE="bfloat16"
+# The packed LSTM CUDA path in this runtime does not support BFloat16.
+ENV GLINER_DTYPE="float32"
 ENV GLINER_MAX_BATCH_SIZE="32"
 ENV GLINER_ROUTE_PREFIX="/"
+# PyTorch 2.2 lacks torch.compiler.is_compiling used during Transformers compilation.
+# Keep GPU inference in eager mode to avoid a startup-time TorchDynamo failure.
+ENV GLINER_DISABLE_COMPILE="true"
 
 USER 10000
 
