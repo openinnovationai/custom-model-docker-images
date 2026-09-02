@@ -1,0 +1,52 @@
+FROM --platform=linux/amd64 pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir \
+    "ray[serve]==2.58.0" \
+    "transformers==4.57.6" \
+    "huggingface_hub==0.36.2" \
+    safetensors \
+    flair
+
+COPY . /app/gliner
+RUN pip install --no-cache-dir /app/gliner
+
+COPY gliner/serve/docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ARG TARGETARCH
+RUN test "${TARGETARCH:-amd64}" = "amd64" \
+    && groupadd --gid 10000 gliner \
+    && useradd --uid 10000 --gid 10000 --create-home gliner
+
+ENV HOME=/home/gliner
+ENV XDG_CACHE_HOME=/home/gliner/.cache
+ENV HF_HOME=/home/gliner/.cache/huggingface
+ENV TOKENIZERS_PARALLELISM=true
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)" || exit 1
+
+# Select the model to embed at build time.
+ARG GLINER_MODEL="urchade/gliner_small-v2.1"
+ENV GLINER_MODEL=${GLINER_MODEL}
+# Default serving configuration (override with -e)
+ENV GLINER_DEVICE="cuda"
+ENV GLINER_DTYPE="bfloat16"
+ENV GLINER_MAX_BATCH_SIZE="32"
+ENV GLINER_ROUTE_PREFIX="/"
+
+USER 10000
+
+# Load once at build time to cache weights, tokenizer, and backbone config.
+RUN python -c "import os; from gliner import GLiNER; GLiNER.from_pretrained(os.environ['GLINER_MODEL'], map_location='cpu')"
+
+# Runtime model loading must use the files embedded above.
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+RUN --network=none python -c "import os; from gliner import GLiNER; GLiNER.from_pretrained(os.environ['GLINER_MODEL'], map_location='cpu', local_files_only=True)"
+
+ENTRYPOINT ["/entrypoint.sh"]
