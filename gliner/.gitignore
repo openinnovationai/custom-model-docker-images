@@ -181,3 +181,7 @@ poetry.toml
 pyrightconfig.json
 
 .vscode
+
+# Exported Docker images
+*.tar
+*.tar.gz

@@ -24,3 +24,6 @@
 build/
 dist/
 models/
+# Do not copy exported images into subsequent builds.
+**/*.tar
+**/*.tar.gz

@@ -170,6 +170,16 @@ local Docker as `gliner-serve:amd64`. To choose a different image tag:
 make build IMAGE=gliner-serve:custom-amd64
 ```
 
+After building, export the complete image, including the model weights, for sharing:
+
+```bash
+make -C gliner export
+```
+
+Run this from the repository root. It saves the existing local image to
+`gliner/dist/gliner-serve-amd64.tar` without rebuilding or loading it. Override `TAR_FILE` to
+choose a different output path (relative to the GLiNER directory).
+
 The image is **amd64 only**, listens on **port 8080**, and runs as **USER 10000**.
 It includes the `urchade/gliner_small-v2.1` weights, tokenizer, and backbone
 configuration, with offline model loading enabled. To embed a different model,

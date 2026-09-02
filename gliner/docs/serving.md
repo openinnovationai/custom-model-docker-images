@@ -451,6 +451,25 @@ and sets `GLINER_DISABLE_COMPILE=true` and `GLINER_DTYPE=float32`.
 From the GLiNER directory (`cd gliner`), the same command is `make build`.
 `make build-nvidia` is also available for consistency with other services.
 
+**Export an image tar file for sharing** from the repository root:
+```bash
+make -C gliner export
+```
+
+This saves the existing local image to `gliner/dist/gliner-serve-amd64.tar`,
+including the model weights, tokenizer, runtime, and image configuration.
+The export uses `docker image save`; it does not rebuild or load the image.
+Run `make -C gliner build` first if you have not built the image or want the
+archive to include newer source changes.
+
+Override the output path or select a different existing image tag as needed:
+```bash
+make -C gliner export TAR_FILE=/tmp/gliner-share.tar IMAGE=gliner-serve:share-amd64
+```
+
+Relative `TAR_FILE` paths are resolved from the GLiNER directory. Exported
+`.tar` and `.tar.gz` files are excluded from Git and the Docker build context.
+
 **Run** from the GLiNER directory:
 ```bash
 make run
