@@ -440,24 +440,38 @@ does not support BFloat16, which otherwise fails with
 `"_thnn_fused_lstm_cell_cuda" not implemented for 'BFloat16'` during memory
 calibration or inference.
 
-**Build** from the GLiNER directory (`cd gliner` from the repository root):
+**Build** from the repository root:
 ```bash
-docker build --platform linux/amd64 -t gliner-serve:amd64 -f gliner/serve/Containerfile .
+make -C gliner build
 ```
 
-**Run:**
+The Makefile fixes the platform to `linux/amd64` and loads the resulting image
+into local Docker as `gliner-serve:amd64`. The Dockerfile embeds the model weights
+and sets `GLINER_DISABLE_COMPILE=true` and `GLINER_DTYPE=float32`.
+From the GLiNER directory (`cd gliner`), the same command is `make build`.
+`make build-nvidia` is also available for consistency with other services.
+
+**Run** from the GLiNER directory:
 ```bash
-docker run --platform linux/amd64 --gpus all -p 8080:8080 gliner-serve:amd64
+make run
 ```
 
-**Embed a custom model:**
+**Build with a GitLab registry tag** from the repository root:
 ```bash
-docker build --platform linux/amd64 \
-  --build-arg GLINER_MODEL=urchade/gliner_medium-v2.1 \
-  -t gliner-serve:medium-amd64 -f gliner/serve/Containerfile .
-docker run --platform linux/amd64 --gpus all -p 8080:8080 \
-  -e GLINER_ENABLE_FLASHDEBERTA=true \
-  gliner-serve:medium-amd64
+make -C gliner build \
+  IMAGE=registry.gitlab.com/openinnovationai/platform/mlops/mlops-serving/gliner:gpu-fp32-amd64
+```
+
+This creates the tag locally. To publish it, authenticate and push explicitly:
+```bash
+docker login registry.gitlab.com
+docker push registry.gitlab.com/openinnovationai/platform/mlops/mlops-serving/gliner:gpu-fp32-amd64
+```
+
+**Embed a custom model** from the GLiNER directory:
+```bash
+make build GLINER_MODEL=urchade/gliner_medium-v2.1 IMAGE=gliner-serve:medium-amd64
+make run IMAGE=gliner-serve:medium-amd64
 ```
 
 The `GLINER_MODEL` build argument defaults to `urchade/gliner_small-v2.1` and

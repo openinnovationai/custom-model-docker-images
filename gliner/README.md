@@ -157,17 +157,23 @@ More information on serving options and parameters can be found in the [document
 
 ### Docker
 
-From this directory, build and run the NVIDIA GPU container:
+From the repository root, build the NVIDIA GPU container with one command:
 
 ```bash
-docker build --platform linux/amd64 -t gliner-serve:amd64 -f gliner/serve/Containerfile .
-docker run --platform linux/amd64 --gpus all -p 8080:8080 gliner-serve:amd64
+make -C gliner build
+```
+
+From this directory, use `make build` and `make run`. The image is loaded into
+local Docker as `gliner-serve:amd64`. To choose a different image tag:
+
+```bash
+make build IMAGE=gliner-serve:custom-amd64
 ```
 
 The image is **amd64 only**, listens on **port 8080**, and runs as **USER 10000**.
 It includes the `urchade/gliner_small-v2.1` weights, tokenizer, and backbone
 configuration, with offline model loading enabled. To embed a different model,
-pass `--build-arg GLINER_MODEL=<model-id>` when building.
+pass `GLINER_MODEL=<model-id>` to `make build`.
 Compilation is disabled by default (`GLINER_DISABLE_COMPILE=true`) for
 compatibility with the image's PyTorch 2.2 runtime. GPU inference uses eager mode
 and float32 because this runtime's packed LSTM CUDA path does not support BFloat16.
