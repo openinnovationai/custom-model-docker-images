@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# Always resolve the bundled model from its image-owned cache. This remains stable
+# when Kubernetes overrides HOME or injects the standard Hugging Face cache vars.
+BUNDLED_HF_HOME="${GLINER_BUNDLED_HF_HOME:-/opt/gliner/huggingface}"
+export HF_HOME="$BUNDLED_HF_HOME"
+export HF_HUB_CACHE="$BUNDLED_HF_HOME/hub"
+export HUGGINGFACE_HUB_CACHE="$BUNDLED_HF_HOME/hub"
+export TRANSFORMERS_CACHE="$BUNDLED_HF_HOME/hub"
+
 CMD="python -m gliner.serve"
 CMD="$CMD --port 8080"
 CMD="$CMD --model ${GLINER_MODEL:-urchade/gliner_small-v2.1}"

@@ -18,11 +18,17 @@ RUN chmod +x /entrypoint.sh
 ARG TARGETARCH
 RUN test "${TARGETARCH:-amd64}" = "amd64" \
     && groupadd --gid 10000 gliner \
-    && useradd --uid 10000 --gid 10000 --create-home gliner
+    && useradd --uid 10000 --gid 10000 --create-home gliner \
+    && install -d --owner 10000 --group 10000 /opt/gliner/huggingface
 
 ENV HOME=/home/gliner
 ENV XDG_CACHE_HOME=/home/gliner/.cache
-ENV HF_HOME=/home/gliner/.cache/huggingface
+# Keep bundled model assets outside HOME so runtime home-directory mounts do not hide them.
+ENV GLINER_BUNDLED_HF_HOME=/opt/gliner/huggingface
+ENV HF_HOME=/opt/gliner/huggingface
+ENV HF_HUB_CACHE=/opt/gliner/huggingface/hub
+ENV HUGGINGFACE_HUB_CACHE=/opt/gliner/huggingface/hub
+ENV TRANSFORMERS_CACHE=/opt/gliner/huggingface/hub
 ENV TOKENIZERS_PARALLELISM=true
 
 EXPOSE 8080

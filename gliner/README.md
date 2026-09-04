@@ -182,8 +182,10 @@ choose a different output path (relative to the GLiNER directory).
 
 The image is **amd64 only**, listens on **port 8080**, and runs as **USER 10000**.
 It includes the `urchade/gliner_small-v2.1` weights, tokenizer, and backbone
-configuration, with offline model loading enabled. To embed a different model,
-pass `GLINER_MODEL=<model-id>` to `make build`.
+configuration under `/opt/gliner/huggingface`, with offline model loading enabled.
+The entrypoint uses this image-owned location even if the runtime overrides `HOME`
+or standard Hugging Face cache variables. To embed a different model, pass
+`GLINER_MODEL=<model-id>` to `make build`.
 Compilation is disabled by default (`GLINER_DISABLE_COMPILE=true`) for
 compatibility with the image's PyTorch 2.2 runtime. GPU inference uses eager mode
 and float32 because this runtime's packed LSTM CUDA path does not support BFloat16.

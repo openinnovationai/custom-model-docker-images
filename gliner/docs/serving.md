@@ -426,10 +426,13 @@ to such a model is a no-op.
 
 The container targets **linux/amd64 only**, runs as **UID 10000**, and listens
 on **0.0.0.0:8080**. The image includes the model weights, tokenizer, and backbone
-configuration in `/home/gliner/.cache/huggingface`. They are downloaded during
+configuration in `/opt/gliner/huggingface`. They are downloaded during
 the build as UID 10000, and a build step verifies model loading with networking
 disabled. Runtime model loading uses offline mode, so startup needs no model
-downloads. The default configuration requires an NVIDIA GPU.
+downloads. The entrypoint explicitly selects the image-owned cache before Ray
+starts, so Kubernetes overrides of `HOME`, `HF_HOME`, `HF_HUB_CACHE`, or
+`TRANSFORMERS_CACHE` do not redirect model loading to an empty cache. The default
+configuration requires an NVIDIA GPU.
 
 This image disables `torch.compile` by default and runs inference in eager mode.
 Its PyTorch 2.2 runtime does not provide `torch.compiler.is_compiling`, which
@@ -496,7 +499,8 @@ make run IMAGE=gliner-serve:medium-amd64
 The `GLINER_MODEL` build argument defaults to `urchade/gliner_small-v2.1` and
 also sets the runtime model. To change models, rebuild with this argument;
 changing only the runtime environment variable does not embed new weights.
-Avoid mounting an empty volume over the bundled cache directory.
+Avoid mounting a volume over `/opt/gliner/huggingface`. To intentionally use a
+different complete cache, set `GLINER_BUNDLED_HF_HOME` to its mounted path.
 
 **Health checks:**
 ```bash
@@ -519,6 +523,7 @@ For a custom model, use
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GLINER_MODEL` | Value of the build argument | Embedded model name; a runtime override must already be available locally |
+| `GLINER_BUNDLED_HF_HOME` | `/opt/gliner/huggingface` | Image-owned model cache selected by the entrypoint |
 | `HF_HUB_OFFLINE` | `1` | Use embedded Hugging Face cache without network requests |
 | `TRANSFORMERS_OFFLINE` | `1` | Load Transformers assets locally |
 | `GLINER_DEVICE` | `cuda` | Device (cuda/cpu) |
