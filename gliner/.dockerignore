@@ -1,0 +1,29 @@
+# Keep local credentials and development files out of image layers.
+**/.git
+**/.env
+**/.env.*
+**/.aws
+**/.ssh
+**/.kube
+**/.docker
+**/.netrc
+**/.npmrc
+**/.pypirc
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/.DS_Store
+**/.venv
+**/venv
+**/__pycache__
+**/.cache
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+build/
+dist/
+models/
+# Do not copy exported images into subsequent builds.
+**/*.tar
+**/*.tar.gz

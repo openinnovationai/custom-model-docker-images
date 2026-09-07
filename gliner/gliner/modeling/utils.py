@@ -1,0 +1,553 @@
+from typing import Tuple, Optional
+
+import torch
+
+from ..config import SUBTOKEN_POOLING_MODES
+
+
+def extract_first_word_embeddings(
+    token_embeds: torch.Tensor,
+    words_mask: torch.Tensor,
+    batch_size: int,
+    max_text_length: int,
+    embed_dim: int,
+) -> torch.Tensor:
+    """Select the first marked subtoken representation for each word."""
+    words_embedding = token_embeds.new_zeros((batch_size, max_text_length, embed_dim))
+    batch_indices, token_indices = torch.where(words_mask > 0)
+    target_word_indices = words_mask[batch_indices, token_indices] - 1
+    words_embedding[batch_indices, target_word_indices] = token_embeds[batch_indices, token_indices]
+    return words_embedding
+
+
+def extract_last_word_embeddings(
+    token_embeds: torch.Tensor,
+    words_mask: torch.Tensor,
+    batch_size: int,
+    max_text_length: int,
+    embed_dim: int,
+) -> torch.Tensor:
+    """Select the last marked subtoken representation for each word."""
+    words_embedding = token_embeds.new_zeros((batch_size, max_text_length, embed_dim))
+    batch_indices, token_indices = torch.where(words_mask > 0)
+    target_word_indices = words_mask[batch_indices, token_indices] - 1
+    words_embedding[batch_indices, target_word_indices] = token_embeds[batch_indices, token_indices]
+    return words_embedding
+
+
+def extract_mean_word_embeddings(
+    token_embeds: torch.Tensor,
+    words_mask: torch.Tensor,
+    attention_mask: torch.Tensor,
+    batch_size: int,
+    max_text_length: int,
+    embed_dim: int,
+) -> torch.Tensor:
+    """Mean-pool all attended subtoken representations for each word."""
+    valid_subtokens = (words_mask > 0) & attention_mask.bool() & (words_mask <= max_text_length)
+    batch_indices, token_indices = torch.where(valid_subtokens)
+    flat_word_indices = batch_indices * max_text_length + words_mask[batch_indices, token_indices] - 1
+    selected_embeddings = token_embeds[batch_indices, token_indices]
+    expanded_indices = flat_word_indices.unsqueeze(-1).expand(-1, embed_dim)
+    flat_output_size = batch_size * max_text_length
+
+    words_embedding = token_embeds.new_zeros((flat_output_size, embed_dim))
+    if torch.onnx.is_in_onnx_export():
+        # ONNX does not support mean reduction or include_self=False for
+        # ScatterElements. Export an equivalent sum/count formulation.
+        words_embedding.scatter_reduce_(
+            0,
+            expanded_indices,
+            selected_embeddings,
+            reduce="sum",
+            include_self=True,
+        )
+        word_counts = token_embeds.new_zeros((flat_output_size, 1))
+        word_counts.scatter_reduce_(
+            0,
+            flat_word_indices.unsqueeze(-1),
+            token_embeds.new_ones((flat_word_indices.size(0), 1)),
+            reduce="sum",
+            include_self=True,
+        )
+        words_embedding = words_embedding / word_counts.clamp_min(1)
+    else:
+        words_embedding.scatter_reduce_(
+            0,
+            expanded_indices,
+            selected_embeddings,
+            reduce="mean",
+            include_self=False,
+        )
+
+    return words_embedding.reshape(batch_size, max_text_length, embed_dim)
+
+
+def extract_max_word_embeddings(
+    token_embeds: torch.Tensor,
+    words_mask: torch.Tensor,
+    attention_mask: torch.Tensor,
+    batch_size: int,
+    max_text_length: int,
+    embed_dim: int,
+) -> torch.Tensor:
+    """Element-wise max-pool all attended subtoken representations for each word."""
+    valid_subtokens = (words_mask > 0) & attention_mask.bool() & (words_mask <= max_text_length)
+    batch_indices, token_indices = torch.where(valid_subtokens)
+    flat_word_indices = batch_indices * max_text_length + words_mask[batch_indices, token_indices] - 1
+    selected_embeddings = token_embeds[batch_indices, token_indices]
+    expanded_indices = flat_word_indices.unsqueeze(-1).expand(-1, embed_dim)
+    flat_output_size = batch_size * max_text_length
+
+    if torch.onnx.is_in_onnx_export():
+        # include_self=False is unsupported by the legacy ONNX exporter. Start
+        # from the dtype minimum and explicitly zero absent word positions.
+        words_embedding = token_embeds.new_full((flat_output_size, embed_dim), torch.finfo(token_embeds.dtype).min)
+        words_embedding.scatter_reduce_(
+            0,
+            expanded_indices,
+            selected_embeddings,
+            reduce="amax",
+            include_self=True,
+        )
+        word_counts = token_embeds.new_zeros((flat_output_size, 1))
+        word_counts.scatter_reduce_(
+            0,
+            flat_word_indices.unsqueeze(-1),
+            token_embeds.new_ones((flat_word_indices.size(0), 1)),
+            reduce="sum",
+            include_self=True,
+        )
+        words_embedding = words_embedding.masked_fill(word_counts == 0, 0)
+    else:
+        words_embedding = token_embeds.new_zeros((flat_output_size, embed_dim))
+        words_embedding.scatter_reduce_(
+            0,
+            expanded_indices,
+            selected_embeddings,
+            reduce="amax",
+            include_self=False,
+        )
+
+    return words_embedding.reshape(batch_size, max_text_length, embed_dim)
+
+
+def extract_word_embeddings(
+    token_embeds: torch.Tensor,
+    words_mask: torch.Tensor,
+    attention_mask: torch.Tensor,
+    batch_size: int,
+    max_text_length: int,
+    embed_dim: int,
+    text_lengths: torch.Tensor,
+    subtoken_pooling: str = "first",
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Dispatch to the configured subtoken pooling implementation.
+
+    ``first`` and ``last`` expect one marked subtoken per word. ``mean`` and
+    ``max`` expect every subtoken to carry its 1-based word index.
+    """
+    if subtoken_pooling == "first":
+        words_embedding = extract_first_word_embeddings(
+            token_embeds, words_mask, batch_size, max_text_length, embed_dim
+        )
+    elif subtoken_pooling == "last":
+        words_embedding = extract_last_word_embeddings(token_embeds, words_mask, batch_size, max_text_length, embed_dim)
+    elif subtoken_pooling == "mean":
+        words_embedding = extract_mean_word_embeddings(
+            token_embeds, words_mask, attention_mask, batch_size, max_text_length, embed_dim
+        )
+    elif subtoken_pooling == "max":
+        words_embedding = extract_max_word_embeddings(
+            token_embeds, words_mask, attention_mask, batch_size, max_text_length, embed_dim
+        )
+    else:
+        supported = ", ".join(SUBTOKEN_POOLING_MODES)
+        raise ValueError(f"Unknown subtoken pooling strategy {subtoken_pooling!r}. Expected one of: {supported}")
+
+    aranged_word_idx = torch.arange(max_text_length, dtype=attention_mask.dtype, device=token_embeds.device).expand(
+        batch_size, -1
+    )
+    mask = aranged_word_idx < text_lengths.reshape(batch_size, -1)[:, :1]
+    return words_embedding, mask
+
+
+def extract_prompt_features(
+    class_token_index: int,
+    token_embeds: torch.Tensor,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    batch_size: int,
+    embed_dim: int,
+    embed_ent_token: bool = True,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Extract prompt/entity type embeddings from special class tokens.
+
+    Extracts embeddings for entity types or other prompt elements that are marked
+    with special class tokens (e.g., [ENT] tokens). These embeddings represent
+    the entity types that the model should extract.
+
+    In prompt-based NER, the input is typically:
+        [ENT] Person [ENT] Organization [SEP] John works at Google
+
+    This function extracts the embeddings corresponding to the [ENT] tokens
+    (or the tokens immediately after them if embed_ent_token=False).
+
+    Args:
+        class_token_index: Token ID of the special class token to extract
+            (e.g., token ID for [ENT]).
+        token_embeds: Token embeddings from transformer.
+            Shape: (batch_size, seq_len, embed_dim)
+        input_ids: Token IDs from tokenizer.
+            Shape: (batch_size, seq_len)
+        attention_mask: Standard attention mask from tokenizer.
+            Shape: (batch_size, seq_len)
+        batch_size: Size of the batch.
+        embed_dim: Embedding dimension size.
+        embed_ent_token: If True, use the [ENT] token embedding itself.
+            If False, use the embedding of the token immediately after [ENT]
+            (i.e., the entity type name token). Default: True.
+
+    Returns:
+        Tuple containing:
+            - prompts_embedding: Embeddings for each prompt/entity type.
+              Shape: (batch_size, max_num_types, embed_dim)
+              where max_num_types is the maximum number of entity types
+              across examples in the batch.
+            - prompts_embedding_mask: Mask indicating valid prompt positions
+              (True) vs padding (False).
+              Shape: (batch_size, max_num_types)
+    """
+    # Find all positions with the class token
+    class_token_mask = input_ids.eq(class_token_index) & attention_mask.gt(0)
+    num_class_tokens = torch.sum(class_token_mask, dim=-1, keepdim=True)
+
+    # Maximum number of class tokens across batch
+    max_embed_dim = num_class_tokens.max()
+    aranged_class_idx = torch.arange(max_embed_dim, dtype=attention_mask.dtype, device=token_embeds.device).expand(
+        batch_size, -1
+    )
+
+    # Find valid positions (not padding)
+    batch_indices, target_class_idx = torch.where(aranged_class_idx < num_class_tokens)
+    _, class_indices = torch.where(class_token_mask)
+
+    # Optionally shift to token after [ENT] (the entity type name)
+    if not embed_ent_token:
+        class_indices += 1
+
+    # Initialize prompt embeddings tensor
+    prompts_embedding = torch.zeros(
+        batch_size, max_embed_dim, embed_dim, dtype=token_embeds.dtype, device=token_embeds.device
+    )
+
+    # Create mask for valid (non-padded) positions
+    prompts_embedding_mask = (aranged_class_idx < num_class_tokens).to(attention_mask.dtype)
+
+    # Extract embeddings at class token positions
+    prompts_embedding[batch_indices, target_class_idx] = token_embeds[batch_indices, class_indices]
+
+    return prompts_embedding, prompts_embedding_mask
+
+
+def extract_prompt_features_and_word_embeddings(
+    class_token_index: int,
+    token_embeds: torch.Tensor,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    text_lengths: torch.Tensor,
+    words_mask: torch.Tensor,
+    embed_ent_token: bool = True,
+    subtoken_pooling: str = "first",
+    **kwargs,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Extract both prompt embeddings and word embeddings in one call.
+
+    Convenience function that combines extract_prompt_features and
+    extract_word_embeddings to get both prompt/entity type embeddings
+    and word-level text embeddings from a single set of token embeddings.
+
+    This is the typical use case for prompt-based NER where you need both:
+    1. Entity type embeddings (from prompt tokens like [ENT])
+    2. Word-level text embeddings (from the actual text tokens)
+
+    Args:
+        class_token_index: Token ID of the special class token (e.g., [ENT]).
+        token_embeds: Token embeddings from transformer.
+            Shape: (batch_size, seq_len, embed_dim)
+        input_ids: Token IDs from tokenizer.
+            Shape: (batch_size, seq_len)
+        attention_mask: Standard attention mask from tokenizer.
+            Shape: (batch_size, seq_len)
+        text_lengths: Number of words in each example.
+            Shape: (batch_size, 1) or (batch_size,)
+        words_mask: Mask mapping subword positions to word indices.
+            Shape: (batch_size, seq_len)
+        embed_ent_token: If True, use [ENT] token embedding. If False,
+            use the token after [ENT] (the entity type name). Default: True.
+        subtoken_pooling: Reduction applied to subtokens belonging to the same
+            word. One of ``first``, ``last``, ``mean``, or ``max``.
+        **kwargs: Additional keyword arguments passed to extract_prompt_features.
+
+    Returns:
+        Tuple containing:
+            - prompts_embedding: Entity type embeddings.
+              Shape: (batch_size, max_num_types, embed_dim)
+            - prompts_embedding_mask: Mask for valid entity type positions.
+              Shape: (batch_size, max_num_types)
+            - words_embedding: Word-level text embeddings.
+              Shape: (batch_size, max_text_length, embed_dim)
+            - mask: Mask for valid word positions.
+              Shape: (batch_size, max_text_length)
+    """
+    batch_size, _, embed_dim = token_embeds.shape
+    max_text_length = text_lengths.max()
+
+    # Extract prompt/entity type embeddings
+    prompts_embedding, prompts_embedding_mask = extract_prompt_features(
+        class_token_index, token_embeds, input_ids, attention_mask, batch_size, embed_dim, embed_ent_token, **kwargs
+    )
+
+    # Extract word-level embeddings
+    words_embedding, mask = extract_word_embeddings(
+        token_embeds,
+        words_mask,
+        attention_mask,
+        batch_size,
+        max_text_length,
+        embed_dim,
+        text_lengths,
+        subtoken_pooling,
+    )
+
+    return prompts_embedding, prompts_embedding_mask, words_embedding, mask
+
+
+def build_entity_pairs(
+    adj: torch.Tensor,
+    span_rep: torch.Tensor,
+    threshold: float = 0.5,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Build entity pairs for relation extraction based on adjacency scores.
+
+    Extracts entity pairs (head, tail) where the adjacency score exceeds a
+    threshold, and retrieves their corresponding embeddings. This is used in
+    relation extraction to select which entity pairs should be classified for
+    relation types.
+
+    The function considers ALL directed pairs (i,j) where i≠j, not just the
+    upper triangle, since relation direction matters (e.g., "founded" vs
+    "founded_by" have opposite directions).
+
+    Args:
+        adj: Adjacency matrix with scores or probabilities for entity pairs.
+            Shape: (batch_size, num_entities, num_entities)
+            The diagonal (self-pairs) is ignored. Values > threshold indicate
+            potential relations.
+        span_rep: Entity/span embeddings for each entity in the batch.
+            Shape: (batch_size, num_entities, embed_dim)
+        threshold: Minimum adjacency score to consider a pair as a potential
+            relation. Pairs with adj[i,j] > threshold are kept. Default: 0.5.
+
+    Returns:
+        Tuple containing:
+            - pair_idx: Indices of (head, tail) entity pairs.
+              Shape: (batch_size, max_pairs, 2)
+              Values are entity indices, or -1 for padding positions.
+            - pair_mask: Boolean mask indicating valid pairs (True) vs padding (False).
+              Shape: (batch_size, max_pairs)
+            - head_rep: Embeddings of head entities for each pair.
+              Shape: (batch_size, max_pairs, embed_dim)
+            - tail_rep: Embeddings of tail entities for each pair.
+              Shape: (batch_size, max_pairs, embed_dim)
+    """
+    B, E, _ = adj.shape
+    device = adj.device
+    D = span_rep.shape[-1]
+
+    # Generate all possible (i, j) pairs where i != j using meshgrid
+    arange = torch.arange(E, device=device, dtype=torch.long)
+    grid_i, grid_j = torch.meshgrid(arange, arange, indexing="ij")
+    off_diag = grid_i != grid_j
+    rows = grid_i[off_diag]
+    cols = grid_j[off_diag]
+
+    # For each example in batch, find pairs exceeding threshold
+    batch_pair_lists: list[torch.Tensor] = []
+
+    for b in range(B):
+        sel = adj[b, rows, cols] > threshold  # Boolean mask for valid pairs
+        pairs = torch.stack([rows[sel], cols[sel]], dim=-1)  # (num_valid_pairs, 2)
+        batch_pair_lists.append(pairs)
+
+    # Find maximum number of pairs across batch (for padding)
+    N = max(p.shape[0] for p in batch_pair_lists) if batch_pair_lists else 0
+
+    # Handle case where no pairs exceed threshold
+    if N == 0:
+        pair_idx = torch.full((B, 1, 2), -1, dtype=torch.long, device=device)
+        pair_mask = torch.zeros((B, 1), dtype=torch.bool, device=device)
+        head_rep = tail_rep = torch.zeros((B, 1, D), dtype=span_rep.dtype, device=device)
+        return pair_idx, pair_mask, head_rep, tail_rep
+
+    # Initialize padded tensors
+    pair_idx = torch.full((B, N, 2), -1, dtype=torch.long, device=device)
+    pair_mask = torch.zeros((B, N), dtype=torch.bool, device=device)
+
+    # Fill in valid pairs for each example
+    for b, pairs in enumerate(batch_pair_lists):
+        m = pairs.shape[0]
+        pair_idx[b, :m] = pairs
+        pair_mask[b, :m] = True
+
+    # Extract head and tail embeddings using advanced indexing
+    batch_idx = torch.arange(B, device=device).unsqueeze(1)  # (B, 1)
+    head_rep = span_rep[batch_idx, pair_idx[..., 0].clamp_min(0)]  # (B, N, D)
+    tail_rep = span_rep[batch_idx, pair_idx[..., 1].clamp_min(0)]  # (B, N, D)
+
+    return pair_idx, pair_mask, head_rep, tail_rep
+
+
+def build_all_entity_pairs(
+    span_rep: torch.Tensor,
+    span_mask: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Build all possible entity pairs for single-step relation extraction.
+
+    Generates all directed pairs (i, j) where i != j for valid entities
+    (those with span_mask == 1), without any adjacency filtering.
+
+    Args:
+        span_rep: Entity/span embeddings. Shape: (batch_size, num_entities, embed_dim)
+        span_mask: Mask for valid entities. Shape: (batch_size, num_entities)
+
+    Returns:
+        Tuple containing:
+            - pair_idx: Indices of (head, tail) entity pairs. Shape: (B, max_pairs, 2)
+            - pair_mask: Boolean mask for valid pairs. Shape: (B, max_pairs)
+            - head_rep: Head entity embeddings. Shape: (B, max_pairs, embed_dim)
+            - tail_rep: Tail entity embeddings. Shape: (B, max_pairs, embed_dim)
+    """
+    B, _, D = span_rep.shape  # (B, num_entities, embed_dim)
+    device = span_rep.device
+
+    # Count valid entities per example
+    entity_counts = span_mask.long().sum(dim=1)  # (B,)
+
+    # Build pairs per example
+    batch_pair_lists: list[torch.Tensor] = []
+    for b in range(B):
+        n = entity_counts[b].item()
+        if n < 2:
+            batch_pair_lists.append(torch.zeros(0, 2, dtype=torch.long, device=device))
+            continue
+        # All (i, j) pairs where i != j, both < n
+        idx = torch.arange(n, device=device)
+        row = idx.repeat_interleave(n - 1)
+        col = torch.cat([torch.cat([idx[:i], idx[i + 1 :]]) for i in range(n)])
+        batch_pair_lists.append(torch.stack([row, col], dim=-1))
+
+    N = max(p.shape[0] for p in batch_pair_lists) if batch_pair_lists else 0
+
+    if N == 0:
+        pair_idx = torch.full((B, 1, 2), -1, dtype=torch.long, device=device)
+        pair_mask = torch.zeros((B, 1), dtype=torch.bool, device=device)
+        head_rep = tail_rep = torch.zeros((B, 1, D), dtype=span_rep.dtype, device=device)
+        return pair_idx, pair_mask, head_rep, tail_rep
+
+    pair_idx = torch.full((B, N, 2), -1, dtype=torch.long, device=device)
+    pair_mask = torch.zeros((B, N), dtype=torch.bool, device=device)
+
+    for b, pairs in enumerate(batch_pair_lists):
+        m = pairs.shape[0]
+        pair_idx[b, :m] = pairs
+        pair_mask[b, :m] = True
+
+    batch_idx = torch.arange(B, device=device).unsqueeze(1)
+    head_rep = span_rep[batch_idx, pair_idx[..., 0].clamp_min(0)]
+    tail_rep = span_rep[batch_idx, pair_idx[..., 1].clamp_min(0)]
+
+    return pair_idx, pair_mask, head_rep, tail_rep
+
+
+def extract_spans_from_tokens(
+    scores: torch.Tensor,
+    labels: Optional[torch.Tensor] = None,
+    threshold: float = 0.5,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Extract entity spans from BIO-style token predictions.
+
+    Args:
+        scores: (B, W, C, 3) - logits for [start, end, inside]
+        labels: Optional (B, W, C, 3) - ground truth labels
+        threshold: Confidence threshold (used when labels is None)
+
+    Returns:
+        span_idx: (B, N, 2) - [start, end] indices, padded
+        span_mask: (B, N) - validity mask
+    """
+    B = scores.size(0)
+    device = scores.device
+
+    if labels is not None:
+        start_mask = labels[..., 0] > 0.5
+        end_mask = labels[..., 1] > 0.5
+        inside_mask = labels[..., 2] > 0.5
+    else:
+        probs = torch.sigmoid(scores)
+        start_mask = probs[..., 0] > threshold
+        end_mask = probs[..., 1] > threshold
+        inside_mask = probs[..., 2] > threshold
+
+    # Prepend zeros for cumsum indexing
+    inside_cumsum = torch.nn.functional.pad(inside_mask.long().cumsum(dim=1), (0, 0, 1, 0))  # (B, W+1, C)
+
+    spans_per_sample = []
+
+    for b in range(B):
+        starts = start_mask[b].nonzero(as_tuple=False)
+        ends = end_mask[b].nonzero(as_tuple=False)
+
+        if starts.size(0) == 0 or ends.size(0) == 0:
+            spans_per_sample.append(torch.empty(0, 2, dtype=torch.long, device=device))
+            continue
+
+        s_pos, s_cls = starts.T
+        e_pos, e_cls = ends.T
+
+        # Find valid (start, end) pairs: same class & end >= start
+        valid = (s_cls[:, None] == e_cls) & (s_pos[:, None] <= e_pos)
+        si, ei = valid.nonzero(as_tuple=True)
+
+        if si.size(0) == 0:
+            spans_per_sample.append(torch.empty(0, 2, dtype=torch.long, device=device))
+            continue
+
+        cs, ce, cc = s_pos[si], e_pos[ei], s_cls[si]
+
+        # Validate: all inside positions must be marked
+        inside_cnt = inside_cumsum[b, ce + 1, cc] - inside_cumsum[b, cs, cc]
+        valid = inside_cnt == (ce - cs + 1)
+
+        cs, ce = cs[valid], ce[valid]
+
+        if cs.size(0) == 0:
+            spans_per_sample.append(torch.empty(0, 2, dtype=torch.long, device=device))
+        else:
+            spans_per_sample.append(torch.stack([cs, ce], dim=1))
+
+    # Pad to uniform size
+    max_spans = max(s.size(0) for s in spans_per_sample) if spans_per_sample else 0
+    max_spans = max(max_spans, 1)  # Ensure at least 1 to avoid empty tensor issues
+
+    span_idx = torch.zeros(B, max_spans, 2, dtype=torch.long, device=device)
+    span_mask = torch.zeros(B, max_spans, dtype=torch.bool, device=device)
+
+    for b, spans in enumerate(spans_per_sample):
+        n = spans.size(0)
+        if n > 0:
+            span_idx[b, :n] = spans
+            span_mask[b, :n] = True
+
+    return span_idx, span_mask
