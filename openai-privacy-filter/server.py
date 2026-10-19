@@ -107,6 +107,7 @@ def create_app(
 
     application.add_api_route("/health", health, methods=["GET"], include_in_schema=False)
     application.add_api_route("/health-check", health, methods=["GET"])
+    application.add_api_route("/health", health, methods=["GET"])
 
     @application.post("/v1/redact")
     def redact(body: RedactRequest, request: Request) -> dict[str, Any]:
