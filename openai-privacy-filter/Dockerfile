@@ -24,10 +24,12 @@ RUN uv sync --frozen --no-dev --no-install-project
 ARG OPF_MODEL_REVISION=7ffa9a043d54d1be65afb281eddf0ffbe629385b
 ARG PRELOAD_MODEL=1
 ENV OPF_CHECKPOINT=/models/privacy-filter \
-    OPF_MODEL_REVISION=${OPF_MODEL_REVISION}
+    OPF_MODEL_REVISION=${OPF_MODEL_REVISION} \
+    TIKTOKEN_CACHE_DIR=/app/tokenizer-cache
 
 COPY scripts/preload.py scripts/preload.py
-RUN mkdir -p /models \
+RUN mkdir -p /models /app/tokenizer-cache \
+    && python -c "import tiktoken; tiktoken.get_encoding('o200k_base')" \
     && if [ "${PRELOAD_MODEL}" = "1" ]; then python scripts/preload.py; fi
 
 
@@ -38,11 +40,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     OPF_CHECKPOINT=/models/privacy-filter \
     OPF_DEVICE=cuda \
     PATH=/app/.venv/bin:${PATH} \
+    TIKTOKEN_CACHE_DIR=/app/tokenizer-cache \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Triton compiles its native launcher during inference, including in runtime images.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libgomp1 python3 \
+    && apt-get upgrade --with-new-pkgs -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates gcc libc6-dev libgomp1 python3 python3-dev \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10000 runner \
     && useradd --uid 10000 --gid 10000 --create-home --shell /usr/sbin/nologin runner \
@@ -52,6 +58,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=builder --chown=runner:runner /app/.venv /app/.venv
+COPY --from=builder --chown=runner:runner /app/tokenizer-cache /app/tokenizer-cache
 COPY --from=builder --chown=runner:runner /models /models
 COPY --chown=runner:runner server.py ./
 

@@ -2,7 +2,11 @@
 
 GPU-backed FastAPI service for [OpenAI Privacy Filter](https://github.com/openai/privacy-filter), built for the OICM custom-model runtime contract and NVIDIA B300 GPUs.
 
-The production image uses CUDA 13.0 and PyTorch 2.13, runs as a non-root user, listens on port `8080`, and includes the pinned Privacy Filter checkpoint so startup does not require network access. The model is warmed before the health endpoint becomes available.
+The production image uses CUDA 13.0 and PyTorch 2.13, runs as a non-root user, listens on port `8080`, and includes the pinned Privacy Filter checkpoint and tokenizer cache so startup does not require network access. The model is warmed before the health endpoint becomes available.
+
+The runtime includes GCC, C development libraries, and Python development headers because Triton compiles native launcher modules during GPU startup. These dependencies must remain in the final image.
+
+The build applies available Ubuntu package updates within the base release. The Python lock includes the patched `certifi`, `filelock`, `httpcore2`, `httpx2`, and `setuptools` versions while preserving the model, PyTorch, and Triton versions.
 
 ## Build
 

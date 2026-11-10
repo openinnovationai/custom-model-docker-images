@@ -13,7 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx2==2.9.1",
+    "httpx2==2.16.0",
     "pytest>=8.3,<10",
 ]
 
@@ -23,6 +23,16 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+[tool.uv]
+# Keep the transitive security updates when refreshing the lock.
+constraint-dependencies = [
+    "certifi>=2026.10.23",
+    "filelock>=4.2.10",
+    "httpcore2>=2.16.0",
+    "httpx2>=2.16.0",
+    "setuptools>=84.2.1",
+]
 
 [[tool.uv.index]]
 name = "pytorch"
