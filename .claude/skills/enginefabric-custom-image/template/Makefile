@@ -4,7 +4,7 @@
 IMAGE ?= my-model
 TAG ?= cpu
 REGISTRY ?=
-GPU_BASE ?= nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+GPU_BASE ?= nvidia/cuda:12.8.1-runtime-ubuntu24.04
 NAME ?= $(IMAGE)-smoke
 
 lock: # Resolve and pin dependencies into uv.lock

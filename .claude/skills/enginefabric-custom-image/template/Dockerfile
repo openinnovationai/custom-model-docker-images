@@ -3,7 +3,7 @@
 # EngineFabric custom model image - template.
 #   CPU : docker buildx build --platform linux/amd64 -t my-model:cpu --load .
 #   GPU : docker buildx build --platform linux/amd64 \
-#           --build-arg BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 \
+#           --build-arg BASE_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu24.04 \
 #           -t my-model:cu128 --load .      (and point torch at the cu128 index in pyproject.toml)
 # Pin BASE_IMAGE by digest (@sha256:...) for release builds.
 

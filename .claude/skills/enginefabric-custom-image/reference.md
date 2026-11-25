@@ -55,7 +55,7 @@ Either parameterise the base (`ARG BASE_IMAGE`, as in `template/`), or select a 
 
 ```dockerfile
 ARG OPERATOR=nvidia
-FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS nvidia
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04 AS nvidia
 FROM python:3.12-slim-bookworm AS cpu
 FROM ${OPERATOR}
 ```

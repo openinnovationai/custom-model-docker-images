@@ -24,11 +24,11 @@ Anything the process reads must be readable by UID 10000; anything it writes (ca
 ## Workflow
 
 1. **Copy the template** to `<model-name>/` at the repo root: `cp -r .claude/skills/enginefabric-custom-image/template <model-name>`.
-2. **Dependencies**: edit `pyproject.toml` with exact `==` pins, then `uv lock`. GPU: pick the torch index matching the CUDA base (`cu126`, `cu128`, `cu130`) and the GPU (Blackwell B200/B300 needs CUDA ≥ 12.8 builds).
+2. **Dependencies**: edit `pyproject.toml` with exact `==` pins, then `uv lock`. GPU: pick the torch index matching the CUDA base (`cu126`, `cu128`, `cu130`) and the GPU (Blackwell B200/B300 needs CUDA ≥ 12.8 builds). Restrict the CUDA index to Linux (`marker = "sys_platform == 'linux'"`) so tests still resolve on a Mac. File-upload routes (`UploadFile`, `Form`) need `python-multipart`.
 3. **Weights**: set `MODEL_ID` and `MODEL_REVISION` (a commit SHA from `https://huggingface.co/api/models/<id>` → `sha`, never `main`). Narrow `allow_patterns` in `scripts/preload.py` to the files the runtime loads. Non-HF sources (fairseq2, torch hub, S3): write the equivalent download into `preload.py` and point the library's cache env var at a directory inside the image.
 4. **Server**: replace `load_model()` and the `/v1/classify` route in `server.py`. Keep the lifespan load, warm-up call, `/health-check` and the lock. Keep `create_app(loader=...)` so tests can inject a fake.
 5. **Tests**: update `tests/test_server.py`; `make test` must pass with no weights and no GPU.
-6. **Build and prove it**: `make build IMAGE=<name>` then `make offline-smoke IMAGE=<name>` (adapt the predict payload). GPU image: `make build-gpu`, then run with `--gpus all` on a GPU host.
+6. **Build and prove it**: `make build IMAGE=<name>` (CPU) or `make build-gpu`, then `make offline-smoke IMAGE=<name>`. Change the smoke target's predict call to a real input. For file-upload routes, write a `scripts/smoke.py` that posts a small sample file as multipart, `docker cp` the script and sample into the running container, and `docker exec` it.
 7. **Document**: `<model-name>/README.md` with build, run, every endpoint with a `curl` example and its response, environment-variable table, hardware notes. Add the service to the root `README.md` "Available Services" list.
 8. **Push the image** to the registry EngineFabric pulls from, with an explicit tag (`<model>:cu128-<model-version>`), never only `latest`.
 
@@ -57,6 +57,7 @@ The template `Dockerfile` already applies all of these. When you change it or st
 - **Fail closed on device:** if `MODEL_DEVICE=cuda` and no GPU is visible, raise at startup. Never fall back to CPU silently.
 - Validate input with Pydantic (`extra="forbid"`, max lengths and batch sizes). Return 4xx for bad input, 500 with a generic message for inference errors, and log the traceback.
 - Clean up temp files (uploads) in `finally`.
+- Audio and video inputs: `soundfile` (libsndfile) decodes only wav, flac, ogg and mp3. To accept m4a or webm, install `ffmpeg` in the runtime stage, or reject those formats with a clear 400.
 
 ## Other serving stacks
 

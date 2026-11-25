@@ -19,6 +19,9 @@ package = false
 
 # CPU wheels. For NVIDIA images switch the URL to the CUDA build that matches
 # the base image (e.g. https://download.pytorch.org/whl/cu128) and re-run `uv lock`.
+# CUDA indexes have no macOS wheels, so for GPU images restrict them to Linux to
+# keep `make test` working on a Mac:
+#   torch = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
 [tool.uv.sources]
 torch = { index = "pytorch" }
 
