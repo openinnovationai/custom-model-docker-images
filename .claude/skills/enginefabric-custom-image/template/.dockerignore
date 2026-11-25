@@ -1,0 +1,19 @@
+# Keep secrets, local envs, caches, weights and tests out of the build context.
+**/.git
+**/.env
+**/.env.*
+**/.aws
+**/.ssh
+**/.netrc
+**/*.pem
+**/*.key
+**/.DS_Store
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+models/
+dist/
+tests/
+**/*.tar
