@@ -3,4 +3,6 @@ models/
 *.mp3
 *.pt
 *.safetensors
-*.gguf
+*.gguf__pycache__/
+*.pyc
+.pytest_cache/
